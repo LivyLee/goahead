@@ -15,6 +15,12 @@
 
 #include    "goahead.h"
 
+/*CAUSION:
+    ALL files for cgi MUST be opened with O_BINARY flag, O.W. ending lines(\r\n)
+    should be replaced by \r\r\n, and lead to parser error on client side.
+    I tested ONVIF cgi, the test tool(client) failed to parse the response.
+*/
+
 /*********************************** Defines **********************************/
 #if ME_GOAHEAD_CGI && !ME_ROM
 
@@ -295,7 +301,7 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
                 doneHeaders = 1;
             }
             if (key && value && !strspn(key, "%<>/\\")) {
-                websWriteHeader(wp, key, "%s", value);
+                /*websWriteHeader(wp, key, "%s", value);*//*this line lead to ONVIF cgi failure, for extra lines in response*/
             } else {
                 trace(5, "cgi: bad response http header: \"%s\": \"%s\"", key, value);
             }
@@ -513,8 +519,8 @@ static int launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, char 
 
     trace(5, "cgi: run %s", cgiPath);
     pid = fdin = fdout = hstdin = hstdout = -1;
-    if ((fdin = open(stdIn, O_RDWR | O_CREAT | O_TRUNC, 0666)) < 0 ||
-            (fdout = open(stdOut, O_RDWR | O_CREAT | O_TRUNC, 0666)) < 0 ||
+    if ((fdin = open(stdIn, O_RDWR | O_CREAT | O_TRUNC| O_BINARY, 0666)) < 0 ||
+            (fdout = open(stdOut, O_RDWR | O_CREAT | O_TRUNC| O_BINARY, 0666)) < 0 ||
             (hstdin = dup(0)) == -1 || (hstdout = dup(1)) == -1 ||
             dup2(fdin, 0) == -1 || dup2(fdout, 1) == -1) {
         goto done;
@@ -680,13 +686,13 @@ static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argp, 
         Open the stdIn and stdOut files and redirect stdin and stdout to them.
      */
     taskId = taskIdSelf();
-    if ((fdout = open(stdOut, O_RDWR | O_CREAT, 0666)) < 0 &&
+    if ((fdout = open(stdOut, O_RDWR | O_CREAT | O_BINARY, 0666)) < 0 &&
             (fdout = creat(stdOut, O_RDWR)) < 0) {
         exit(0);
     }
     ioTaskStdSet(taskId, 1, fdout);
 
-    if ((fdin = open(stdIn, O_RDONLY | O_CREAT, 0666)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
+    if ((fdin = open(stdIn, O_RDONLY | O_CREAT | O_BINARY, 0666)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
         printf("content-type: text/html\n\n" "Can not create CGI stdin to %s\n", stdIn);
         close(fdout);
         exit (0);
